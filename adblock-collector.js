@@ -121,9 +121,9 @@ function checkFacebookBlocked() {
 
     function checkGTMBlocked() {
         return new Promise((resolve) => {
-            checkScriptBlocked('https://www.googletagmanager.com/gtm.js?id=GTM-TXQBZMR5').then((gtmJsBlocked) => {
+            checkScriptBlocked('https://www.googletagmanager.com/gtm.js?id=GTM-T74JQSCZ').then((gtmJsBlocked) => {
                 var xhr = new XMLHttpRequest();
-                var gtmCollectURL = 'https://www.googletagmanager.com/gtm.js?id=GTM-TXQBZMR5'; // Example GTM request
+                var gtmCollectURL = 'https://www.googletagmanager.com/gtm.js?id=GTM-T74JQSCZ'; // Example GTM request
         
                 xhr.open("GET", gtmCollectURL, true);
                 xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
