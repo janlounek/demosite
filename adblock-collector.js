@@ -1,9 +1,8 @@
 (function() {
-    // config
+    // 🔴 CONFIGURATION: Put your reCAPTCHA v3 Site Key here
     const RECAPTCHA_SITE_KEY = "6LfrOxQsAAAAAGJGmBAgA4P7vJBUG0ERPxCLKbQN";
 
     // --- 1. Silent Detection Utilities ---
-
     function isBot() {
         return navigator.webdriver || window.outerWidth === 0 || navigator.hardwareConcurrency === 0;
     }
@@ -24,14 +23,10 @@
     // --- 2. The Passive Network Check ---
     async function checkResourceBlocked(url) {
         try {
-            await fetch(url, { 
-                method: 'GET', 
-                mode: 'no-cors', 
-                cache: 'no-store'
-            });
-            return 0; // Success
+            await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+            return 0; 
         } catch (error) {
-            return 1; // Blocked
+            return 1; 
         }
     }
 
@@ -48,16 +43,12 @@
     // --- 3. reCAPTCHA Loader ---
     function loadRecaptchaToken() {
         return new Promise((resolve) => {
-            // 1. Inject the script
             const script = document.createElement('script');
             script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
             script.async = true;
-            
-            // Handle script load error (e.g., blocked by AdBlock)
             script.onerror = () => resolve(null);
             document.head.appendChild(script);
 
-            // 2. Wait for ready and execute
             const waitForGrecaptcha = () => {
                 if (window.grecaptcha && window.grecaptcha.execute) {
                     window.grecaptcha.ready(() => {
@@ -66,24 +57,16 @@
                             .catch(() => resolve(null));
                     });
                 } else {
-                    // Keep checking lightly or rely on timeout
                     setTimeout(waitForGrecaptcha, 100);
                 }
             };
             
-            // Start waiting
             waitForGrecaptcha();
-
-            // 3. Hard Timeout (2 seconds)
-            // If reCAPTCHA is blocked or slow, don't hang the analytics forever.
-            setTimeout(() => {
-                resolve(null);
-            }, 2000); 
+            setTimeout(() => { resolve(null); }, 2000); 
         });
     }
 
     // --- 4. Main Execution ---
-
     var adBlockDetected = 0;
 
     getBrowser().then(async browser => {
@@ -91,10 +74,8 @@
         var event_name = getEventNameFromRequestURL();
         var event_value = getValueFromRequestURL();
 
-        // Start reCAPTCHA process (Async)
         const recaptchaPromise = loadRecaptchaToken();
 
-        // Start Network Checks (Async)
         const checksPromise = Promise.all([
             checkResourceBlocked('https://www.googletagmanager.com/gtm.js?id=GTM-TEST'),
             checkResourceBlocked('https://connect.facebook.net/en_US/fbevents.js'),
@@ -103,41 +84,23 @@
             checkResourceBlocked('https://bat.bing.com/bat.js')
         ]);
 
-        // Insert CSS Bait (Immediate)
         var bait = document.createElement('div');
         bait.innerHTML = '&nbsp;';
         bait.className = 'pub_300x250 pub_728x90 text-ad textAd text_ad text_ads text-ads text-ad-links';
         bait.style.cssText = 'width:1px;height:1px;position:absolute;left:-10000px;top:-10000px;';
         document.body.appendChild(bait);
-
-        // Wait for everything to finish
-        // We wait for the reCAPTCHA (max 2s) AND the network checks.
-        // The CSS bait only needs 200ms, so it will definitely be ready by the time reCAPTCHA returns.
         
-        const [recaptchaToken, networkResults] = await Promise.all([
-            recaptchaPromise,
-            checksPromise
-        ]);
+        const [recaptchaToken, networkResults] = await Promise.all([recaptchaPromise, checksPromise]);
 
-        // Check CSS Bait
         if (bait.offsetHeight === 0 || bait.offsetWidth === 0 || window.getComputedStyle(bait).display === 'none') {
             adBlockDetected = 1;
         }
         document.body.removeChild(bait);
 
-        // Unpack Network Results
-        var [
-            gtmRequestBlocked,
-            facebookRequestBlocked,
-            googleAnalyticsRequestBlocked,
-            googleAdsRequestBlocked,
-            bingAdsRequestBlocked
-        ] = networkResults;
+        var [gtmRequestBlocked, facebookRequestBlocked, googleAnalyticsRequestBlocked, googleAdsRequestBlocked, bingAdsRequestBlocked] = networkResults;
 
-        // Prepare Data
         var data = {
-            recaptchaToken: recaptchaToken, // The token (or null if blocked)
-            
+            recaptchaToken: recaptchaToken,
             adBlockDetected: adBlockDetected,
             facebookRequestBlocked: facebookRequestBlocked,
             googleAnalyticsRequestBlocked: googleAnalyticsRequestBlocked,
@@ -152,10 +115,33 @@
             isBotDetected: isBotDetected
         };
 
-        // Send Data
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "https://adblock-data-collector-922954175378.europe-west1.run.app", true);
         xhr.setRequestHeader("Content-Type", "application/json");
+
+        // --- 🚀 NEW: Receive Score & Push to DataLayer ---
+        xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    
+                    // Initialize dataLayer if it doesn't exist
+                    window.dataLayer = window.dataLayer || [];
+                    
+                    // Push the event
+                    window.dataLayer.push({
+                        'event': 'recaptcha_verified',
+                        'recaptcha_score': response.recaptcha_score, // The score (0.0 - 1.0)
+                        'ad_block_detected': adBlockDetected, // Useful for GTM triggers
+                        'is_bot_flag': isBotDetected
+                    });
+
+                } catch (e) {
+                    console.warn("Failed to parse analytics response", e);
+                }
+            }
+        };
+
         xhr.onerror = function () { console.warn("Analytics upload failed"); };
         xhr.send(JSON.stringify(data));
     });
