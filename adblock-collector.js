@@ -39,18 +39,16 @@
 
     const scriptParams = getScriptParams();
 
-    // --- 2. Turnstile Loader (Fixed Visibility) ---
+    // --- 2. Turnstile Loader (Visible for Debugging) ---
     function loadTurnstileToken() {
         return new Promise((resolve) => {
             const container = document.createElement('div');
             container.id = 'turnstile-container';
             
-            // 🟢 FIX: Do NOT use display: none. Move it off-screen instead.
-            // This allows Turnstile to calculate geometry without being seen.
-            container.style.position = 'absolute';
-            container.style.top = '-10000px';
-            container.style.left = '-10000px';
-            container.style.opacity = '0';
+            // 🟢 CHANGED: Widget is now fully visible at the bottom of the body
+            // We removed the absolute positioning/opacity hacks
+            container.style.marginTop = '20px';
+            container.style.marginBottom = '20px';
             
             document.body.appendChild(container);
 
@@ -66,12 +64,11 @@
                     try {
                         window.turnstile.render('#turnstile-container', {
                             sitekey: TURNSTILE_SITE_KEY,
-                            // Ensure we try to be invisible if the widget supports it
-                            appearance: 'always', 
+                            appearance: 'always', // Force visible
                             callback: function(token) {
                                 resolve(token);
-                                // Optional: Keep container for a moment or remove
-                                try { document.body.removeChild(container); } catch(e){}
+                                // Don't remove container yet so you can see it worked
+                                // try { document.body.removeChild(container); } catch(e){}
                             },
                             'error-callback': function() {
                                 resolve(null);
@@ -86,8 +83,8 @@
             };
             
             checkTurnstile();
-            // Timeout after 4 seconds
-            setTimeout(() => { resolve(null); }, 4000); 
+            // Timeout after 8 seconds (give you time to solve it if needed)
+            setTimeout(() => { resolve(null); }, 8000); 
         });
     }
 
