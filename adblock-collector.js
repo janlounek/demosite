@@ -1,11 +1,6 @@
 (function() {
-    // 🔴 CONFIGURATION: Put your reCAPTCHA v3 Site Key here
-    const RECAPTCHA_SITE_KEY = "6LfrOxQsAAAAAGJGmBAgA4P7vJBUG0ERPxCLKbQN";
-
-    // --- 1. Silent Detection Utilities ---
-    function isBot() {
-        return navigator.webdriver || window.outerWidth === 0 || navigator.hardwareConcurrency === 0;
-    }
+    // 🔴 CONFIGURATION: Put your Cloudflare Turnstile Site Key here
+    const TURNSTILE_SITE_KEY = "0x4AAAAAACDB4EPBzvAxPOxV";
 
     async function getBrowser() {
         var userAgent = navigator.userAgent;
@@ -20,7 +15,7 @@
         return "Other";
     }
 
-    // --- 2. The Passive Network Check ---
+    // --- 1. The Passive Network Check ---
     async function checkResourceBlocked(url) {
         try {
             await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
@@ -40,57 +35,83 @@
         return params.get('event_value') || '';
     }
 
-    // --- 3. reCAPTCHA Loader ---
-    function loadRecaptchaToken() {
+    // --- NEW: UTM Parameter Extractor ---
+    function getQueryParam(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name) || '';
+    }
+
+    // --- 2. Turnstile Loader ---
+    function loadTurnstileToken() {
         return new Promise((resolve) => {
+            // Create a container for Turnstile (required, even if invisible)
+            const container = document.createElement('div');
+            container.id = 'turnstile-container';
+            container.style.display = 'none'; 
+            document.body.appendChild(container);
+
+            // Inject the script
             const script = document.createElement('script');
-            script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+            script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
             script.async = true;
+            script.defer = true;
+            
+            // Handle block/error
             script.onerror = () => resolve(null);
             document.head.appendChild(script);
 
-            const waitForGrecaptcha = () => {
-                if (window.grecaptcha && window.grecaptcha.execute) {
-                    window.grecaptcha.ready(() => {
-                        window.grecaptcha.execute(RECAPTCHA_SITE_KEY, {action: 'adblock_check'})
-                            .then(token => resolve(token))
-                            .catch(() => resolve(null));
-                    });
+            // Wait for API and Render
+            const checkTurnstile = () => {
+                if (window.turnstile) {
+                    try {
+                        window.turnstile.render('#turnstile-container', {
+                            sitekey: TURNSTILE_SITE_KEY,
+                            callback: function(token) {
+                                resolve(token);
+                                // Cleanup container after getting token
+                                try { document.body.removeChild(container); } catch(e){}
+                            },
+                            'error-callback': function() {
+                                resolve(null);
+                            }
+                        });
+                    } catch (e) {
+                        resolve(null);
+                    }
                 } else {
-                    setTimeout(waitForGrecaptcha, 100);
+                    setTimeout(checkTurnstile, 100);
                 }
             };
             
-            waitForGrecaptcha();
-            setTimeout(() => { resolve(null); }, 2000); 
+            checkTurnstile();
+            // Hard Timeout (3 seconds - Turnstile can be slightly slower than reCAPTCHA to init)
+            setTimeout(() => { resolve(null); }, 3000); 
         });
     }
 
-    // --- 4. Main Execution ---
+    // --- 3. Main Execution ---
     var adBlockDetected = 0;
 
     getBrowser().then(async browser => {
-        var isBotDetected = isBot() ? 1 : 0;
-        var event_name = getEventNameFromRequestURL();
-        var event_value = getValueFromRequestURL();
-
-        const recaptchaPromise = loadRecaptchaToken();
-
+        
+        // Start Checks
+        const turnstilePromise = loadTurnstileToken();
         const checksPromise = Promise.all([
-            checkResourceBlocked('https://www.googletagmanager.com/gtm.js?id=GTM-TQP4WV7B'),
+            checkResourceBlocked('https://www.googletagmanager.com/gtm.js?id=GTM-TEST'),
             checkResourceBlocked('https://connect.facebook.net/en_US/fbevents.js'),
             checkResourceBlocked('https://www.google-analytics.com/analytics.js'),
             checkResourceBlocked('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'),
             checkResourceBlocked('https://bat.bing.com/bat.js')
         ]);
 
+        // CSS Bait
         var bait = document.createElement('div');
         bait.innerHTML = '&nbsp;';
         bait.className = 'pub_300x250 pub_728x90 text-ad textAd text_ad text_ads text-ads text-ad-links';
         bait.style.cssText = 'width:1px;height:1px;position:absolute;left:-10000px;top:-10000px;';
         document.body.appendChild(bait);
         
-        const [recaptchaToken, networkResults] = await Promise.all([recaptchaPromise, checksPromise]);
+        const [turnstileToken, networkResults] = await Promise.all([turnstilePromise, checksPromise]);
 
         if (bait.offsetHeight === 0 || bait.offsetWidth === 0 || window.getComputedStyle(bait).display === 'none') {
             adBlockDetected = 1;
@@ -100,42 +121,50 @@
         var [gtmRequestBlocked, facebookRequestBlocked, googleAnalyticsRequestBlocked, googleAdsRequestBlocked, bingAdsRequestBlocked] = networkResults;
 
         var data = {
-            recaptchaToken: recaptchaToken,
+            // Renamed field for clarity
+            recaptchaToken: turnstileToken, 
+            
+            // Core Identity
+            browser: browser,
+            
+            // Adblock Stats
             adBlockDetected: adBlockDetected,
             facebookRequestBlocked: facebookRequestBlocked,
             googleAnalyticsRequestBlocked: googleAnalyticsRequestBlocked,
             googleAdsRequestBlocked: googleAdsRequestBlocked,
             bingAdsRequestBlocked: bingAdsRequestBlocked,
             gtmRequestBlocked: gtmRequestBlocked,
-            browser: browser,
+            
+            // Page Context
             hostname: window.location.hostname,
             pageURL: window.location.href,
-            event_name: event_name,
-            value: event_value,
-            isBotDetected: isBotDetected
+            event_name: getEventNameFromRequestURL(),
+            value: getValueFromRequestURL(),
+            
+            // Analytics Fields
+            referrer: document.referrer || '(direct)',
+            
+            // 🆕 UTM Parameters
+            utm_source: getQueryParam('utm_source'),
+            utm_medium: getQueryParam('utm_medium'),
+            utm_campaign: getQueryParam('utm_campaign')
         };
 
         var xhr = new XMLHttpRequest();
+        // 🔴 REPLACE WITH YOUR CLOUD FUNCTION URL
         xhr.open("POST", "https://adblock-data-collector-922954175378.europe-west1.run.app", true);
         xhr.setRequestHeader("Content-Type", "application/json");
 
-        // --- 🚀 NEW: Receive Score & Push to DataLayer ---
         xhr.onload = function() {
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                     var response = JSON.parse(xhr.responseText);
-                    
-                    // Initialize dataLayer if it doesn't exist
                     window.dataLayer = window.dataLayer || [];
-                    
-                    // Push the event
                     window.dataLayer.push({
-                        'event': 'recaptcha_verified',
-                        'recaptcha_score': response.recaptcha_score, // The score (0.0 - 1.0)
-                        'ad_block_detected': adBlockDetected, // Useful for GTM triggers
-                        'is_bot_flag': isBotDetected
+                        'event': 'turnstile_verified', 
+                        'bot_score': response.recaptcha_score, 
+                        'ad_block_detected': adBlockDetected
                     });
-
                 } catch (e) {
                     console.warn("Failed to parse analytics response", e);
                 }
