@@ -4,24 +4,6 @@
   <!-- 1. Meta Charset should always be first -->
   <meta charset="UTF-8">
 
-  <!-- 2. The Comprehensive CSP -->
-  <!-- 
-       Updates made:
-       - Added https://www.googletagmanager.com to script-src (for GTM)
-       - Added connect-src for Cloudflare and your Cloud Run App (CRITICAL for sending data)
-       - Added img-src/data: for GTM pixels
-  -->
-  <meta http-equiv="Content-Security-Policy" 
-      content="
-        default-src 'self'; 
-        script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.googletagmanager.com; 
-        style-src 'self' 'unsafe-inline'; 
-        font-src 'self' https://challenges.cloudflare.com data:; 
-        frame-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com; 
-        img-src 'self' data: https://www.googletagmanager.com; 
-        connect-src 'self' https://challenges.cloudflare.com https://adblock-data-collector-922954175378.europe-west1.run.app https://www.google-analytics.com https://stats.g.doubleclick.net;
-      ">
-
   <title>Home</title>
 
   <!-- 3. Google Tag Manager (Moved below meta tags for stability) -->
