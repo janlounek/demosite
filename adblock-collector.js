@@ -25,50 +25,52 @@
         }
     }
 
-    function getEventNameFromRequestURL() {
-        const params = new URLSearchParams(document.currentScript.src.split('?')[1]);
-        return params.get('event_name') || 'unknown_event';
+    function getScriptParams() {
+        if (document.currentScript) {
+            return new URLSearchParams(document.currentScript.src.split('?')[1]);
+        }
+        const script = document.querySelector('script[src*="adblock-collector.js"]') || 
+                       document.querySelector('script[src*="adblock-tracker.js"]');
+        if (script && script.src.includes('?')) {
+            return new URLSearchParams(script.src.split('?')[1]);
+        }
+        return new URLSearchParams();
     }
 
-    function getValueFromRequestURL() {
-        const params = new URLSearchParams(document.currentScript.src.split('?')[1]);
-        return params.get('event_value') || '';
-    }
+    const scriptParams = getScriptParams();
 
-    // --- NEW: UTM Parameter Extractor ---
-    function getQueryParam(name) {
-        const params = new URLSearchParams(window.location.search);
-        return params.get(name) || '';
-    }
-
-    // --- 2. Turnstile Loader ---
+    // --- 2. Turnstile Loader (Fixed Visibility) ---
     function loadTurnstileToken() {
         return new Promise((resolve) => {
-            // Create a container for Turnstile (required, even if invisible)
             const container = document.createElement('div');
             container.id = 'turnstile-container';
-            container.style.display = 'none'; 
+            
+            // 🟢 FIX: Do NOT use display: none. Move it off-screen instead.
+            // This allows Turnstile to calculate geometry without being seen.
+            container.style.position = 'absolute';
+            container.style.top = '-10000px';
+            container.style.left = '-10000px';
+            container.style.opacity = '0';
+            
             document.body.appendChild(container);
 
-            // Inject the script
             const script = document.createElement('script');
             script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
             script.async = true;
             script.defer = true;
-            
-            // Handle block/error
             script.onerror = () => resolve(null);
             document.head.appendChild(script);
 
-            // Wait for API and Render
             const checkTurnstile = () => {
                 if (window.turnstile) {
                     try {
                         window.turnstile.render('#turnstile-container', {
                             sitekey: TURNSTILE_SITE_KEY,
+                            // Ensure we try to be invisible if the widget supports it
+                            appearance: 'always', 
                             callback: function(token) {
                                 resolve(token);
-                                // Cleanup container after getting token
+                                // Optional: Keep container for a moment or remove
                                 try { document.body.removeChild(container); } catch(e){}
                             },
                             'error-callback': function() {
@@ -84,8 +86,8 @@
             };
             
             checkTurnstile();
-            // Hard Timeout (3 seconds - Turnstile can be slightly slower than reCAPTCHA to init)
-            setTimeout(() => { resolve(null); }, 3000); 
+            // Timeout after 4 seconds
+            setTimeout(() => { resolve(null); }, 4000); 
         });
     }
 
@@ -94,7 +96,6 @@
 
     getBrowser().then(async browser => {
         
-        // Start Checks
         const turnstilePromise = loadTurnstileToken();
         const checksPromise = Promise.all([
             checkResourceBlocked('https://www.googletagmanager.com/gtm.js?id=GTM-TEST'),
@@ -104,7 +105,6 @@
             checkResourceBlocked('https://bat.bing.com/bat.js')
         ]);
 
-        // CSS Bait
         var bait = document.createElement('div');
         bait.innerHTML = '&nbsp;';
         bait.className = 'pub_300x250 pub_728x90 text-ad textAd text_ad text_ads text-ads text-ad-links';
@@ -120,31 +120,25 @@
 
         var [gtmRequestBlocked, facebookRequestBlocked, googleAnalyticsRequestBlocked, googleAdsRequestBlocked, bingAdsRequestBlocked] = networkResults;
 
+        function getQueryParam(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name) || '';
+        }
+
         var data = {
-            // Renamed field for clarity
-            recaptchaToken: turnstileToken, 
-            
-            // Core Identity
+            recaptchaToken: turnstileToken,
             browser: browser,
-            
-            // Adblock Stats
             adBlockDetected: adBlockDetected,
             facebookRequestBlocked: facebookRequestBlocked,
             googleAnalyticsRequestBlocked: googleAnalyticsRequestBlocked,
             googleAdsRequestBlocked: googleAdsRequestBlocked,
             bingAdsRequestBlocked: bingAdsRequestBlocked,
             gtmRequestBlocked: gtmRequestBlocked,
-            
-            // Page Context
             hostname: window.location.hostname,
             pageURL: window.location.href,
-            event_name: getEventNameFromRequestURL(),
-            value: getValueFromRequestURL(),
-            
-            // Analytics Fields
+            event_name: scriptParams.get('event_name') || 'unknown_event',
+            value: scriptParams.get('event_value') || '',
             referrer: document.referrer || '(direct)',
-            
-            // 🆕 UTM Parameters
             utm_source: getQueryParam('utm_source'),
             utm_medium: getQueryParam('utm_medium'),
             utm_campaign: getQueryParam('utm_campaign')
