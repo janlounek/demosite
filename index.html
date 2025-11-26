@@ -1,20 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-T74JQSCZ');</script>
-<!-- End Google Tag Manager -->
+  <!-- 1. Meta Charset should always be first -->
   <meta charset="UTF-8">
+
+  <!-- 2. The Comprehensive CSP -->
+  <!-- 
+       Updates made:
+       - Added https://www.googletagmanager.com to script-src (for GTM)
+       - Added connect-src for Cloudflare and your Cloud Run App (CRITICAL for sending data)
+       - Added img-src/data: for GTM pixels
+  -->
   <meta http-equiv="Content-Security-Policy" 
-      content="default-src 'self' https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self' https://challenges.cloudflare.com;">
+      content="
+        default-src 'self'; 
+        script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.googletagmanager.com; 
+        style-src 'self' 'unsafe-inline'; 
+        font-src 'self' https://challenges.cloudflare.com data:; 
+        frame-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com; 
+        img-src 'self' data: https://www.googletagmanager.com; 
+        connect-src 'self' https://challenges.cloudflare.com https://adblock-data-collector-922954175378.europe-west1.run.app https://www.google-analytics.com https://stats.g.doubleclick.net;
+      ">
+
   <title>Home</title>
+
+  <!-- 3. Google Tag Manager (Moved below meta tags for stability) -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-T74JQSCZ');</script>
+  <!-- End Google Tag Manager -->
+
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Your other scripts -->
   <script src="script.js" defer></script>
-  <!-- Google Tag Manager -->
+  
   <script>
     window.dataLayer = window.dataLayer || [];
     dataLayer.push({
@@ -22,13 +44,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       'page': 'home'
     });
   </script>
+  
   <script src="/demosite/adblock-collector.js?event_name=page_view" defer></script>
 </head>
 <body>
   <!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T74JQSCZ"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T74JQSCZ"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
+
   <nav>
     <a href="index.html">Home</a> |
     <a href="about.html">About</a> |
